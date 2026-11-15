@@ -1,4 +1,5 @@
 # Focus Frame
+- [ ] Apply Ordivalabs-inspired theme and verify desktop/mobile study flows
 - [x] Demo account flow and shared navigation
 - [x] Dashboard and saved document library
 - [x] Deterministic note generation and file input
