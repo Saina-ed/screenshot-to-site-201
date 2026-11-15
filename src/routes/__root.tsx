@@ -12,8 +12,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { FocusProvider } from '@/features/focus/store';
-import { Button } from '@/components/ui/button';
+import { FocusProvider } from "@/features/focus/store";
+import { Button } from "@/components/ui/button";
 
 function NotFoundComponent() {
   return (
@@ -91,7 +91,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
-      { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;650;700&display=swap' },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;650;700&display=swap",
+      },
       {
         rel: "stylesheet",
         href: appCss,
@@ -125,7 +128,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <FocusProvider><Outlet /></FocusProvider>
+      <FocusProvider>
+        <Outlet />
+      </FocusProvider>
     </QueryClientProvider>
   );
 }
