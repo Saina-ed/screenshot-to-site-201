@@ -1,0 +1,168 @@
+import { useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Brand } from "./shell";
+import { useFocus } from "./store";
+import { biologyNotes } from "./model";
+export function Auth() {
+  const [signup, setSignup] = useState(true);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState("");
+  const { update } = useFocus();
+  const navigate = useNavigate();
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (password.length < 6) {
+      setError("Please use at least 6 characters for your demo password.");
+      return;
+    }
+    try {
+      const accounts: { name: string; email: string; hash: string }[] = JSON.parse(
+        localStorage.getItem("focus-frame-demo-accounts") || "[]",
+      );
+      const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(password));
+      const hash = Array.from(new Uint8Array(bytes))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      const existing = accounts.find((a) => a.email === email.toLowerCase());
+      if (signup && existing) {
+        setError("This demo account already exists. Switch to sign in.");
+        return;
+      }
+      if (!signup && (!existing || existing.hash !== hash)) {
+        setError("Email or password doesn’t match a demo account on this device.");
+        return;
+      }
+      const account = signup ? { name: name.trim(), email: email.toLowerCase(), hash } : existing;
+      if (!account) return;
+      if (signup)
+        localStorage.setItem("focus-frame-demo-accounts", JSON.stringify([...accounts, account]));
+      update((s) => ({ ...s, user: { name: account.name, email: account.email } }));
+      navigate({ to: "/" });
+    } catch {
+      setError("Demo sign-in could not be saved. Please try again.");
+    }
+  }
+  return (
+    <div className="auth-page">
+      <section className="auth-story">
+        <Link to="/">
+          <Brand />
+        </Link>
+        <h1>Learning, in a way that works for you.</h1>
+        <p>
+          A little more clarity. A little less overwhelm. Meet your personal space for focused notes
+          and thoughtful revision.
+        </p>
+        <div className="auth-preview">
+          {biologyNotes.slice(0, 2).map((n) => (
+            <article key={n.id} className={`note-card ${n.color}`}>
+              <div className="note-topic">{n.topic}</div>
+              <h3>{n.title}</h3>
+              <p>{n.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+      <section className="auth-form-wrap">
+        <form className="auth-form" onSubmit={submit}>
+          <span className="eyebrow">STAY FOCUSED. LEARN YOUR WAY.</span>
+          <h1 className="mt-4">{signup ? "Your next chapter starts here." : "Welcome back."}</h1>
+          <p>
+            {signup
+              ? "Create your demo account and make a little room for learning."
+              : "Your notes and your next small step are waiting."}
+          </p>
+          {signup && (
+            <>
+              <label htmlFor="name" className="field-label">
+                Your name
+              </label>
+              <input
+                id="name"
+                required
+                autoComplete="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Alex Morgan"
+              />
+            </>
+          )}
+          <label htmlFor="email" className="field-label">
+            Email address
+          </label>
+          <input
+            id="email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+          <label htmlFor="password" className="field-label">
+            Password
+          </label>
+          <div className="password-field">
+            <input
+              id="password"
+              type={show ? "text" : "password"}
+              required
+              autoComplete={signup ? "new-password" : "current-password"}
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              aria-label={show ? "Hide password" : "Show password"}
+              onClick={() => setShow(!show)}
+            >
+              {show ? <EyeOff /> : <Eye />}
+            </Button>
+          </div>
+          {error && (
+            <p className="error-text" role="alert">
+              {error}
+            </p>
+          )}
+          <Button className="auth-submit" type="submit">
+            {signup ? "Get started" : "Sign in"}
+            <ArrowRight />
+          </Button>
+          <div className="auth-switch">
+            {signup ? "Already have an account?" : "New to Focus Frame?"}
+            <Button
+              variant="link"
+              type="button"
+              onClick={() => {
+                setSignup(!signup);
+                setError("");
+              }}
+            >
+              {signup ? "Sign in" : "Create an account"}
+            </Button>
+          </div>
+          <Button variant="ghost" asChild className="w-full">
+            <Link to="/">
+              Explore the demo <ArrowRight />
+            </Link>
+          </Button>
+          <div className="demo-label">
+            <ShieldCheck size={13} className="inline mr-1" />
+            Demo authentication only. Your account and notes stay on this device. Not for sensitive
+            information.
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}

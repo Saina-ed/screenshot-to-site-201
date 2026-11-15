@@ -1,0 +1,282 @@
+import { useState, useRef } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  Upload,
+  FileText,
+  X,
+  Sparkles,
+  AlignLeft,
+  ListOrdered,
+  CircleHelp,
+  Network,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Shell, PageHeader } from "./shell";
+import { useFocus } from "./store";
+import { layouts, makeDocument, generateNotes, type Layout } from "./model";
+import { readLessonFile } from "./files";
+export function CreateNotes() {
+  const [title, setTitle] = useState("");
+  const [subject, setSubject] = useState("Biology");
+  const [topic, setTopic] = useState("");
+  const [text, setText] = useState("");
+  const [tab, setTab] = useState("paste");
+  const [file, setFile] = useState<File | null>(null);
+  const [layout, setLayout] = useState<Layout>("Key ideas");
+  const [density, setDensity] = useState("Balanced");
+  const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [error, setError] = useState("");
+  const [drag, setDrag] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const { saveDocument } = useFocus();
+  const navigate = useNavigate();
+  async function upload(f?: File) {
+    if (!f) return;
+    setFile(f);
+    setReading(true);
+    setError("");
+    try {
+      const result = await readLessonFile(f);
+      if (!result.trim())
+        throw new Error("No readable text found. Try a text-based file or paste your notes.");
+      setText(result);
+      if (!title) setTitle(f.name.replace(/\.[^.]+$/, ""));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not read this file.");
+      setText("");
+    } finally {
+      setReading(false);
+    }
+  }
+  async function generate() {
+    if (!title.trim() || text.trim().split(/\s+/).length < 10) {
+      setError("Add a document title and at least 10 words of lesson material.");
+      return;
+    }
+    setError("");
+    setBusy(true);
+    await new Promise((r) => setTimeout(r, 900));
+    const notes = generateNotes(text, density);
+    const doc = makeDocument(
+      title.trim(),
+      subject,
+      notes.map((n) => ({ ...n, topic: topic.trim() || n.topic })),
+      layout,
+    );
+    saveDocument(doc);
+    navigate({ to: "/canvas", search: { doc: doc.id } });
+  }
+  const icons = [AlignLeft, ListOrdered, CircleHelp, Network];
+  return (
+    <Shell>
+      <PageHeader title="Create Notes" eyebrow="Create Notes" />
+      <main className="page-content">
+        <div className="page-intro">
+          <div>
+            <span className="eyebrow">
+              <Sparkles size={12} /> FROM BIG IDEAS TO SMALL STEPS
+            </span>
+            <h1 className="mt-3">Make room for understanding.</h1>
+            <p>Your lesson material, transformed into a little more clarity.</p>
+          </div>
+        </div>
+        <div className="form-panel">
+          <div className="form-row">
+            <div>
+              <label className="field-label" htmlFor="document-title">
+                Document title
+              </label>
+              <input
+                id="document-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Photosynthesis"
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="subject">
+                Subject
+              </label>
+              <select id="subject" value={subject} onChange={(e) => setSubject(e.target.value)}>
+                {[
+                  "Biology",
+                  "Physics",
+                  "Chemistry",
+                  "Mathematics",
+                  "English",
+                  "History",
+                  "Other",
+                ].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <section className="form-section">
+            <h2>Start with your material</h2>
+            <div className="segmented input-tabs">
+              <Button
+                variant="ghost"
+                className={tab === "paste" ? "selected" : ""}
+                onClick={() => setTab("paste")}
+              >
+                <FileText />
+                Paste notes
+              </Button>
+              <Button
+                variant="ghost"
+                className={tab === "upload" ? "selected" : ""}
+                onClick={() => setTab("upload")}
+              >
+                <Upload />
+                Upload a file
+              </Button>
+            </div>
+            {tab === "paste" ? (
+              <>
+                <textarea
+                  aria-label="Lesson material"
+                  rows={8}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Paste your lesson notes, textbook extracts or revision material here..."
+                />
+                <div className="input-foot">
+                  <span>{text.trim() ? text.trim().split(/\s+/).length : 0} words</span>
+                  <Button variant="ghost" size="sm" onClick={() => setText("")}>
+                    <X />
+                    Clear
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div
+                className={`drop-zone ${drag ? "dragging" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDrag(true);
+                }}
+                onDragLeave={() => setDrag(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDrag(false);
+                  upload(e.dataTransfer.files[0]);
+                }}
+              >
+                <input
+                  ref={input}
+                  type="file"
+                  accept=".pdf,.docx,.pptx,.txt,.md"
+                  className="hidden"
+                  onChange={(e) => upload(e.target.files?.[0])}
+                />
+                {reading ? (
+                  <Loader2 className="spin" size={30} />
+                ) : file ? (
+                  <FileText size={30} />
+                ) : (
+                  <Upload size={30} />
+                )}
+                <h3>
+                  {reading ? "Reading your lesson..." : file?.name || "Drop your lesson file here"}
+                </h3>
+                <p>
+                  {file
+                    ? `${file.name.split(".").pop()?.toUpperCase()} · ${Math.round(file.size / 1024)} KB`
+                    : "PDF, DOCX, PPTX or TXT · text-based files"}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => input.current?.click()}
+                    disabled={reading}
+                  >
+                    {file ? "Replace file" : "Browse files"}
+                  </Button>
+                  {file && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Remove file"
+                      onClick={() => {
+                        setFile(null);
+                        setText("");
+                      }}
+                    >
+                      <X />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+          <section className="form-section">
+            <h2>A shape that suits you</h2>
+            <div className="choice-grid">
+              {layouts.map((l, i) => {
+                const Icon = icons[i] ?? AlignLeft;
+                return (
+                  <Button
+                    variant="outline"
+                    className={layout === l ? "selected" : ""}
+                    key={l}
+                    onClick={() => setLayout(l)}
+                  >
+                    <Icon />
+                    {l}
+                  </Button>
+                );
+              })}
+            </div>
+            <div className="form-row mt-6 mb-0">
+              <div>
+                <label className="field-label">Card density</label>
+                <div className="segmented">
+                  {["Concise", "Balanced", "Detailed"].map((d) => (
+                    <Button
+                      variant="ghost"
+                      key={d}
+                      className={density === d ? "selected" : ""}
+                      onClick={() => setDensity(d)}
+                    >
+                      {d}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="field-label" htmlFor="topic">
+                  Topic <span className="text-muted-foreground">(optional)</span>
+                </label>
+                <input
+                  id="topic"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="e.g. Plant biology"
+                />
+              </div>
+            </div>
+          </section>
+          {error && (
+            <p role="alert" className="error-text">
+              {error}
+            </p>
+          )}
+          <div className="generate-footer">
+            <p>
+              <ShieldCheck size={13} className="inline mr-1" />
+              Demo generation · Your material stays on this device.
+            </p>
+            <Button onClick={generate} disabled={busy || reading}>
+              {busy ? <Loader2 className="spin" /> : <Sparkles />}
+              {busy ? "Creating your cards..." : "Generate my notes"}
+            </Button>
+          </div>
+        </div>
+      </main>
+    </Shell>
+  );
+}

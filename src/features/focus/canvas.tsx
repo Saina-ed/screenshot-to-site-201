@@ -1,0 +1,700 @@
+import { useState, useEffect, useRef, Fragment } from "react";
+import { Link } from "@tanstack/react-router";
+import {
+  Eye,
+  ArrowLeft,
+  ArrowRight,
+  RotateCcw,
+  Moon,
+  Sun,
+  Settings2,
+  Layers,
+  Sparkles,
+  X,
+  ChevronDown,
+  ShieldCheck,
+  Check,
+  BookOpen,
+  Leaf,
+  Maximize2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useFocus } from "./store";
+import { Shell, SubjectIcon } from "./shell";
+import { Progress } from "./dashboard";
+import { layouts, quizAfter, evaluateAnswer, type Document, type Note, type Layout } from "./model";
+export function Diagram({ index }: { index: number }) {
+  if (index === 0 || index === 5)
+    return (
+      <svg
+        className="note-illustration"
+        viewBox="0 0 250 50"
+        role="img"
+        aria-label="Sunlight is absorbed by a leaf"
+      >
+        <circle cx="35" cy="22" r="11" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path
+          d="M35 5V1M35 43v4M18 22h-5M52 22h5M22 9l-3-3M48 35l3 3M48 9l3-3M22 35l-3 3M70 23h38m-5-4 5 4-5 4M131 39c-20-22-3-37 29-35 0 26-13 36-29 35Zm0 0 24-28"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <text x="176" y="26">
+          Light → energy
+        </text>
+      </svg>
+    );
+  if (index === 1)
+    return (
+      <svg
+        className="note-illustration"
+        viewBox="0 0 250 50"
+        role="img"
+        aria-label="Chloroplast with internal stacks"
+      >
+        <ellipse
+          cx="70"
+          cy="25"
+          rx="44"
+          ry="21"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        {[46, 67, 88].map((x) => (
+          <g key={x}>
+            {[17, 23, 29].map((y) => (
+              <ellipse key={y} cx={x} cy={y} rx="8" ry="3" fill="none" stroke="currentColor" />
+            ))}
+          </g>
+        ))}
+        <text x="131" y="28">
+          Chloroplast
+        </text>
+      </svg>
+    );
+  if (index === 7)
+    return (
+      <svg
+        className="note-illustration"
+        viewBox="0 0 250 50"
+        role="img"
+        aria-label="Rate rises then levels off as light increases"
+      >
+        <path
+          d="M35 4v35h155M40 35Q75 7 113 9h70"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <text x="78" y="49">
+          Light intensity →
+        </text>
+      </svg>
+    );
+  return null;
+}
+function Quiz({ note, number }: { note: Note; number: number }) {
+  const [answer, setAnswer] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const result = evaluateAnswer(answer, note.text);
+  return (
+    <section className="quiz-card">
+      <span className="eyebrow">
+        <BookOpen size={12} /> A MOMENT FOR RECALL · QUIZ {number}
+      </span>
+      <h3>{note.question}</h3>
+      <textarea
+        aria-label={`Quiz ${number} answer`}
+        placeholder="In your own words..."
+        value={answer}
+        onChange={(e) => {
+          setAnswer(e.target.value);
+          setSubmitted(false);
+        }}
+      />
+      <Button size="sm" disabled={!answer.trim()} onClick={() => setSubmitted(true)}>
+        <Check />
+        Check answer
+      </Button>
+      {submitted && (
+        <div className="quiz-result">
+          <strong>
+            {result.good
+              ? "You’ve picked up some key ideas. Nicely done."
+              : "A good place to start. Try including the key ideas below."}
+          </strong>
+          <p>Example answer: {note.text}</p>
+          <small>Indicative feedback, not a formal mark.</small>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              setSubmitted(false);
+              setAnswer("");
+            }}
+          >
+            <RotateCcw />
+            Try again
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+export function Canvas({
+  documentId,
+  initialMode,
+}: {
+  documentId?: string | undefined;
+  initialMode?: string | undefined;
+}) {
+  const { documents, dark, tracking, update, saveDocument } = useFocus();
+  const doc = documents.find((d) => d.id === documentId) || documents[0];
+  const [mode, setMode] = useState(initialMode === "revision" ? "revision" : "notes");
+  const [focus, setFocus] = useState<string | null>(null);
+  const [dwell, setDwell] = useState<string | null>(null);
+  const [last, setLast] = useState(0);
+  const [recovery, setRecovery] = useState(false);
+  const [swipe, setSwipe] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [insights, setInsights] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [resetMessage, setResetMessage] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touch = useRef<number | null>(null);
+  const sessionSaved = useRef(false);
+  const activeId = doc?.id;
+  const covered = doc ? doc.notes.filter((n) => (doc.views[n.id] || 0) > 0).length : 0;
+  const percent = doc ? Math.round((covered / doc.notes.length) * 100) : 0;
+  useEffect(() => {
+    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    if (!activeId) return;
+    update((s) => ({
+      ...s,
+      documents: s.documents.map((d) =>
+        d.id === activeId ? { ...d, opened: new Date().toISOString() } : d,
+      ),
+    }));
+  }, [activeId]);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  function viewed(index: number) {
+    if (!doc?.notes[index]) return;
+    const note = doc.notes[index];
+    setLast(index);
+    saveDocument({ ...doc, views: { ...doc.views, [note.id]: (doc.views[note.id] || 0) + 1 } });
+  }
+  function enter(index: number) {
+    if (!doc || !tracking) return;
+    if (timer.current) clearTimeout(timer.current);
+    const note = doc.notes[index];
+    if (!note) return;
+    setDwell(note.id);
+    timer.current = setTimeout(() => {
+      setFocus(note.id);
+      setDwell(null);
+      viewed(index);
+    }, 1000);
+  }
+  function leave() {
+    if (timer.current) clearTimeout(timer.current);
+    setDwell(null);
+    setFocus(null);
+  }
+  function changeCard(delta: number) {
+    if (!doc) return;
+    const next = Math.max(0, Math.min(doc.notes.length - 1, current + delta));
+    if (next !== current) {
+      setCurrent(next);
+      viewed(next);
+    }
+  }
+  useEffect(() => {
+    if (!swipe) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "ArrowRight") changeCard(1);
+      if (e.key === "ArrowLeft") changeCard(-1);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [swipe, current, doc]);
+  function saveSession() {
+    if (!doc || sessionSaved.current) return;
+    update((s) => ({
+      ...s,
+      sessions: [
+        { title: doc.title, covered, total: doc.notes.length, date: new Date().toISOString() },
+        ...s.sessions,
+      ].slice(0, 30),
+    }));
+    sessionSaved.current = true;
+  }
+  function setLayout(layout: Layout) {
+    if (doc) saveDocument({ ...doc, layout });
+    leave();
+  }
+  if (!doc)
+    return (
+      <Shell>
+        <div className="empty-state">
+          <Layers size={35} />
+          <h2>A blank canvas. A world of possibilities.</h2>
+          <p>Create some notes to get started.</p>
+          <Button asChild>
+            <Link to="/create">Create notes</Link>
+          </Button>
+        </div>
+      </Shell>
+    );
+  const activeNote = doc.notes[current];
+  if (!activeNote)
+    return (
+      <Shell>
+        <div className="empty-state">This lesson has no notes yet.</div>
+      </Shell>
+    );
+  const next = Math.min(last + 1, doc.notes.length - 1);
+  const nextNote = doc.notes[next] ?? activeNote;
+  function renderNote(note: Note, index: number, isSwipe = false) {
+    const isQA = doc?.layout === "Question & answer" || (isSwipe && mode === "revision");
+    const visible = !isQA || revealed[note.id];
+    return (
+      <article
+        key={note.id}
+        tabIndex={isSwipe ? undefined : 0}
+        aria-label={note.title}
+        className={`note-card ${note.color} ${focus === note.id ? "focused" : ""} ${mode === "revision" && (doc?.views[note.id] || 0) > 2 ? "repeated" : ""} ${recovery && index === last ? "recovery-highlight" : ""}`}
+        onMouseEnter={isSwipe ? undefined : () => enter(index)}
+        onMouseLeave={isSwipe ? undefined : leave}
+        onFocus={isSwipe ? undefined : () => enter(index)}
+        onBlur={isSwipe ? undefined : leave}
+        onClick={
+          isSwipe
+            ? undefined
+            : () => {
+                if (dwell || focus !== note.id) {
+                  leave();
+                  setFocus(note.id);
+                  viewed(index);
+                }
+              }
+        }
+      >
+        <div className="note-topic">
+          <span className="topic-dot" />
+          {note.topic}
+        </div>
+        <span className="note-number">{String(index + 1).padStart(2, "0")}</span>
+        {dwell === note.id && (
+          <svg className="dwell-ring" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" />
+          </svg>
+        )}
+        <h3>{isQA ? note.question : note.title}</h3>
+        {visible ? (
+          <>
+            <p>{note.text}</p>
+            {doc?.subject === "Biology" && <Diagram index={index} />}
+          </>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              setRevealed((r) => ({ ...r, [note.id]: true }));
+            }}
+          >
+            <Eye />
+            Reveal explanation
+          </Button>
+        )}
+        <div className="note-card-footer">
+          <span>
+            {mode === "revision"
+              ? doc?.views[note.id]
+                ? `Viewed ${doc.views[note.id]} ${doc.views[note.id] === 1 ? "time" : "times"}`
+                : "Not viewed yet"
+              : "One idea at a time"}
+          </span>
+          {(doc?.views[note.id] || 0) > 0 && <Check size={12} />}
+        </div>
+      </article>
+    );
+  }
+  return (
+    <Shell>
+      <header className="canvas-top">
+        <div className="canvas-title">
+          <SubjectIcon subject={doc.subject} />
+          <div>
+            <h1>{doc.title}</h1>
+            <p>
+              GCSE {doc.subject} <span> / Your learning canvas</span>
+            </p>
+          </div>
+        </div>
+        <div className="canvas-top-actions">
+          <div className="segmented">
+            <Button
+              size="sm"
+              variant="ghost"
+              className={mode === "notes" ? "selected" : ""}
+              onClick={() => setMode("notes")}
+            >
+              Note-taking
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className={mode === "revision" ? "selected" : ""}
+              onClick={() => {
+                setMode("revision");
+                sessionSaved.current = false;
+              }}
+            >
+              Revision
+            </Button>
+          </div>
+          <span className="tracking-indicator">
+            <Eye size={14} />
+            {tracking ? "Tracking on" : "Tracking off"}
+          </span>
+          <Button asChild variant="ghost" size="icon" title="Settings">
+            <Link to="/settings">
+              <Settings2 />
+            </Link>
+          </Button>
+        </div>
+      </header>
+      <div className="canvas-toolbar">
+        <div className="toolbar-group">
+          <Button asChild variant="ghost" size="icon" title="Back to dashboard">
+            <Link to="/" onClick={saveSession}>
+              <ArrowLeft />
+            </Link>
+          </Button>
+          <select
+            aria-label="Canvas layout"
+            value={doc.layout}
+            onChange={(e) => setLayout(e.target.value as Layout)}
+          >
+            {layouts.map((l) => (
+              <option key={l}>{l}</option>
+            ))}
+          </select>
+          <Button
+            variant="ghost"
+            size="icon"
+            title={dark ? "Switch to light theme" : "Switch to dark theme"}
+            onClick={() => update((s) => ({ ...s, dark: !s.dark }))}
+          >
+            {dark ? <Sun /> : <Moon />}
+          </Button>
+        </div>
+        <div className="toolbar-group">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setRecovery(true);
+              setSwipe(false);
+            }}
+          >
+            <Sparkles />
+            Simulate losing focus
+          </Button>
+          <Button
+            variant={swipe ? "default" : "outline"}
+            onClick={() => {
+              setSwipe(!swipe);
+              if (!swipe) viewed(current);
+              leave();
+            }}
+          >
+            <Layers />
+            {swipe ? "Exit swipe view" : "Swipe view"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Reset layout"
+            onClick={() => {
+              setLayout("Key ideas");
+              setRevealed({});
+              setRecovery(false);
+              setCurrent(0);
+              setResetMessage(true);
+              setTimeout(() => setResetMessage(false), 2000);
+            }}
+          >
+            <RotateCcw />
+          </Button>
+        </div>
+      </div>
+      <main className="canvas-content">
+        {recovery && (
+          <div className="recovery-banner">
+            <Sparkles size={20} />
+            <p>
+              You were reading <strong>{doc.notes[last]?.title}</strong>.{" "}
+              {next === last ? (
+                "You’ve reached the last card. Take a moment to reflect."
+              ) : (
+                <>
+                  Next up: <strong>{doc.notes[next]?.title}</strong>.
+                </>
+              )}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setRecovery(false);
+                setCurrent(next);
+                setFocus(nextNote.id);
+                viewed(next);
+                document
+                  .getElementsByClassName("note-card")
+                  [next]?.scrollIntoView({ block: "center", behavior: "smooth" });
+              }}
+            >
+              Continue <ArrowRight />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Dismiss attention reminder"
+              onClick={() => setRecovery(false)}
+            >
+              <X />
+            </Button>
+          </div>
+        )}
+        {resetMessage && (
+          <p className="notice" role="status">
+            Your layout is reset. Your progress is still saved.
+          </p>
+        )}
+        {mode === "revision" && (
+          <section className="revision-progress">
+            <strong>
+              {covered} of {doc.notes.length} notes covered
+            </strong>
+            <Progress value={percent} />
+            <span>{percent}% complete</span>
+            <span>{doc.notes.length - covered} not yet viewed</span>
+          </section>
+        )}
+        {swipe ? (
+          <section
+            className="swipe-stage"
+            onTouchStart={(e) => {
+              touch.current = e.touches[0]?.clientX ?? null;
+            }}
+            onTouchEnd={(e) => {
+              if (touch.current === null) return;
+              const distance = touch.current - (e.changedTouches[0]?.clientX ?? touch.current);
+              if (Math.abs(distance) > 50) changeCard(distance > 0 ? 1 : -1);
+              touch.current = null;
+            }}
+          >
+            <div className="swipe-counter">
+              <span>One idea. A little more space.</span>
+              <span>
+                {current + 1} / {doc.notes.length}
+              </span>
+            </div>
+            {renderNote(activeNote, current, true)}
+            {mode === "revision" && (
+              <div className="confidence-controls">
+                <Button
+                  variant={doc.confidence[activeNote.id] === "know" ? "default" : "outline"}
+                  onClick={() =>
+                    saveDocument({
+                      ...doc,
+                      confidence: { ...doc.confidence, [activeNote.id]: "know" },
+                    })
+                  }
+                >
+                  <Check />I know this
+                </Button>
+                <Button
+                  variant={doc.confidence[activeNote.id] === "review" ? "default" : "outline"}
+                  onClick={() =>
+                    saveDocument({
+                      ...doc,
+                      confidence: { ...doc.confidence, [activeNote.id]: "review" },
+                    })
+                  }
+                >
+                  <RotateCcw />
+                  Review again
+                </Button>
+              </div>
+            )}
+            {mode === "revision" && quizAfter(current, doc.notes.length) && (
+              <div className="mt-6">
+                <Quiz note={activeNote} number={Math.floor((current + 1) / 4)} />
+              </div>
+            )}
+            <div className="swipe-controls">
+              <Button variant="outline" disabled={current === 0} onClick={() => changeCard(-1)}>
+                <ArrowLeft />
+                Previous
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setSwipe(false);
+                  saveSession();
+                }}
+              >
+                Back to canvas
+              </Button>
+              <Button disabled={current === doc.notes.length - 1} onClick={() => changeCard(1)}>
+                Next
+                <ArrowRight />
+              </Button>
+            </div>
+            {current === doc.notes.length - 1 && (
+              <Button
+                variant="outline"
+                className="w-full mt-4"
+                onClick={() => {
+                  saveSession();
+                  setInsights(true);
+                  setSwipe(false);
+                }}
+              >
+                Finish session <Check />
+              </Button>
+            )}
+          </section>
+        ) : (
+          <>
+            <div className="canvas-caption">
+              <strong>
+                {doc.layout === "Mind map"
+                  ? "Connected ideas. A clearer picture."
+                  : mode === "revision"
+                    ? "Let’s see what stays with you."
+                    : "A little clarity, one card at a time."}
+              </strong>
+              <span>
+                {doc.notes.length} notes · {doc.layout}
+              </span>
+            </div>
+            <div
+              className={`${doc.layout === "Step by step" ? "steps-layout" : doc.layout === "Mind map" ? "mindmap-layout" : "note-grid"} ${focus ? "has-focus" : ""}`}
+            >
+              {doc.layout === "Mind map" && (
+                <div className="mindmap-center">
+                  <Leaf size={20} className="inline mr-2" />
+                  {doc.title}
+                  <svg viewBox="0 0 500 35" className="w-full h-7 mt-2" aria-hidden="true">
+                    <path
+                      d="M250 0v12M80 32V12h340v20M250 12v20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1"
+                    />
+                  </svg>
+                </div>
+              )}
+              {doc.notes.map((note, index) => (
+                <Fragment key={note.id}>
+                  {renderNote(note, index)}
+                  {mode === "revision" && quizAfter(index, doc.notes.length) && (
+                    <Quiz
+                      note={
+                        doc.notes[index === 3 ? Math.min(5, doc.notes.length - 1) : index] ?? note
+                      }
+                      number={Math.floor((index + 1) / 4)}
+                    />
+                  )}
+                </Fragment>
+              ))}
+            </div>
+          </>
+        )}
+        <section className="insights-toggle">
+          <Button variant="ghost" onClick={() => setInsights(!insights)}>
+            <span className="flex items-center gap-2">
+              <Eye size={16} />
+              Session insights
+            </span>
+            <ChevronDown className={insights ? "rotate-180" : ""} />
+          </Button>
+          {insights && (
+            <div className="insights-body">
+              <div className="insight-stats">
+                <div>
+                  <strong>{covered}</strong>
+                  <span>Cards viewed</span>
+                </div>
+                <div>
+                  <strong>{doc.notes.length - covered}</strong>
+                  <span>Not yet viewed</span>
+                </div>
+                <div>
+                  <strong>
+                    {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}
+                  </strong>
+                  <span>Session duration</span>
+                </div>
+                <div>
+                  <strong>{percent}%</strong>
+                  <span>Revision progress</span>
+                </div>
+              </div>
+              <div className="timeline">
+                <span>0 min</span>
+                <span>Sample focus timeline</span>
+                <span>20 min</span>
+                <i className="focus-dip dip-one" />
+                <i className="focus-dip dip-two" />
+              </div>
+              <div className="flex justify-between items-center">
+                <p className="privacy-line">
+                  <ShieldCheck size={13} />
+                  Eye data stays on this device.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={sessionSaved.current}
+                  onClick={() => {
+                    saveSession();
+                    setSeconds((s) => s + 1);
+                  }}
+                >
+                  {sessionSaved.current ? "Session saved" : "Save session"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
+        <footer className="canvas-status">
+          <span>
+            {mode === "revision"
+              ? "Revision mode · A little recall goes a long way."
+              : "Note-taking mode · Follow along at your own pace."}
+          </span>
+          <span>Mouse-based simulation · No webcam</span>
+        </footer>
+      </main>
+    </Shell>
+  );
+}

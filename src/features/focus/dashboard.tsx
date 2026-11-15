@@ -1,0 +1,238 @@
+import { Link } from "@tanstack/react-router";
+import {
+  ArrowRight,
+  Plus,
+  Sparkles,
+  FileText,
+  Clock3,
+  BookOpen,
+  ChevronRight,
+  ShieldCheck,
+  MoreHorizontal,
+  Leaf,
+  Sun,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import sprig from "@/assets/learning-sprig.jpg";
+import { useFocus } from "./store";
+import { Shell, PageHeader, SubjectIcon } from "./shell";
+import type { Document } from "./model";
+export function Progress({ value }: { value: number }) {
+  return (
+    <div className="progress-track">
+      <progress value={value} max={100} aria-label="Learning progress" />
+    </div>
+  );
+}
+export function DocumentCard({ doc, actions }: { doc: Document; actions?: React.ReactNode }) {
+  const covered = Object.values(doc.views).filter((v) => v > 0).length;
+  const percent = Math.round((covered / doc.notes.length) * 100);
+  return (
+    <article className="document-card">
+      <div className="doc-card-top">
+        <SubjectIcon subject={doc.subject} />
+        <span className="subject-tag">GCSE {doc.subject}</span>
+      </div>
+      <h3>{doc.title}</h3>
+      <div className="doc-details">
+        <FileText size={11} />
+        {doc.notes.length} notes<span>·</span>
+        <span>{doc.layout}</span>
+      </div>
+      <div className="doc-progress-label">
+        <span>Revision progress</span>
+        <span>{percent}%</span>
+      </div>
+      <Progress value={percent} />
+      <div className="doc-footer">
+        <span>
+          Opened{" "}
+          {new Date(doc.opened).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+        </span>
+        <Link to="/canvas" search={{ doc: doc.id }}>
+          Continue <ArrowRight size={13} />
+        </Link>
+      </div>
+      {actions}
+    </article>
+  );
+}
+export function Dashboard() {
+  const { documents, user, sessions } = useFocus();
+  const docs = documents.slice(0, 3);
+  return (
+    <Shell>
+      <PageHeader title="Home" eyebrow="Home" />
+      <main className="page-content">
+        <div className="page-intro">
+          <div>
+            <h1>
+              Good afternoon{user ? `, ${user.name.split(" ")[0]}` : ""}{" "}
+              <Sun className="inline ml-1 text-muted-foreground" size={25} />
+            </h1>
+            <p>A fresh space to think clearly. What will you learn today?</p>
+          </div>
+          <Button asChild>
+            <Link to="/create">
+              <Plus />
+              Create new notes
+            </Link>
+          </Button>
+        </div>
+        <section className="welcome-banner">
+          <img src={sprig} width={1152} height={576} alt="A fresh green sprig" />
+          <div className="welcome-copy">
+            <span className="eyebrow">
+              <Sparkles size={12} /> A LITTLE FOCUS GOES A LONG WAY
+            </span>
+            <h2>Your pace. Your space. Your potential.</h2>
+            <p>Turn big ideas into small steps, and make learning feel lighter.</p>
+            <Link to="/canvas" search={{ doc: "sample-0" }}>
+              Let’s get into your flow <ArrowRight size={14} />
+            </Link>
+          </div>
+        </section>
+        <section className="metrics">
+          <div className="metric">
+            <span className="metric-icon">
+              <FileText size={19} />
+            </span>
+            <div>
+              <strong>{documents.length}</strong>
+              <small>Learning documents</small>
+            </div>
+            <span className="trend">Your library</span>
+          </div>
+          <div className="metric">
+            <span className="metric-icon">
+              <Clock3 size={19} />
+            </span>
+            <div>
+              <strong>
+                {sessions.length ? sessions.length * 12 : 48}
+                <span className="text-sm font-normal ml-1">min</span>
+              </strong>
+              <small>Focused learning this week</small>
+            </div>
+            <span className="trend">A little every day</span>
+          </div>
+          <div className="metric">
+            <span className="metric-icon">
+              <BookOpen size={19} />
+            </span>
+            <div>
+              <strong>{sessions.length || 3}</strong>
+              <small>Revision sessions</small>
+            </div>
+            <span className="trend">Keep it going</span>
+          </div>
+        </section>
+        <section>
+          <div className="section-heading">
+            <div>
+              <h2>Continue learning</h2>
+              <p>Pick up right where your curiosity left off.</p>
+            </div>
+            <Link to="/history">
+              View all documents <ArrowRight size={13} />
+            </Link>
+          </div>
+          <div className="document-grid dashboard-docs">
+            {docs.map((doc) => (
+              <DocumentCard key={doc.id} doc={doc} />
+            ))}
+          </div>
+        </section>
+        <div className="dashboard-lower">
+          <section>
+            <div className="section-heading">
+              <h2>Recent revision</h2>
+              <Link to="/revision">
+                View all <ChevronRight size={13} />
+              </Link>
+            </div>
+            <div className="session-list">
+              {(sessions.length
+                ? sessions
+                    .slice(0, 3)
+                    .map((s) => ({
+                      title: s.title,
+                      score: `${s.covered} / ${s.total} covered`,
+                      detail: new Date(s.date).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      }),
+                    }))
+                : [
+                    {
+                      title: "Photosynthesis",
+                      score: "6 / 9 covered",
+                      detail: "Biology · 18 min · Today",
+                    },
+                    {
+                      title: "Cell Structure",
+                      score: "4 / 4 covered",
+                      detail: "Biology · 15 min · Yesterday",
+                    },
+                    {
+                      title: "Quadratic Equations",
+                      score: "3 / 4 covered",
+                      detail: "Mathematics · 15 min · 12 Nov",
+                    },
+                  ]
+              ).map((s, i) => (
+                <Link to="/revision" key={i} className="session-row">
+                  <SubjectIcon
+                    subject={s.title === "Quadratic Equations" ? "Mathematics" : "Biology"}
+                  />
+                  <div>
+                    <strong>{s.title}</strong>
+                    <p>{s.detail}</p>
+                  </div>
+                  <span className="session-score">{s.score}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+          <section>
+            <div className="section-heading">
+              <h2>A little progress, every day</h2>
+              <span className="text-xs text-muted-foreground">This week</span>
+            </div>
+            <div className="activity-panel">
+              <div className="activity-summary">
+                <div>
+                  <strong>
+                    48 <span className="text-xs font-normal text-muted-foreground">minutes</span>
+                  </strong>
+                  <small>Your sample weekly activity</small>
+                </div>
+                <span>
+                  <Leaf size={12} className="inline mr-1" />
+                  Small steps count
+                </span>
+              </div>
+              <div className="activity-chart">
+                {["M", "T", "W", "T", "F", "S", "S"].map((day, i) => (
+                  <div className="activity-day" key={i}>
+                    <div className={`activity-bar bar-${i} ${i === 5 ? "today" : ""}`} />
+                    <span>{day}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
+        <footer className="page-footer">
+          <span>
+            <ShieldCheck size={12} />
+            Your learning is yours. Eye data stays on this device.
+          </span>
+          <span>
+            Made for your mind. Built for your pace. <Leaf size={11} />
+          </span>
+        </footer>
+      </main>
+    </Shell>
+  );
+}
