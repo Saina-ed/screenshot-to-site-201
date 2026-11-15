@@ -1,18 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useContext, useEffect, useState, type ReactNode } from "react";
 import { sampleDocuments, type Document } from "./model";
-type User = { name: string; email: string };
-type State = {
-  documents: Document[];
-  user: User | null;
-  dark: boolean;
-  tracking: boolean;
-  sessions: { title: string; covered: number; total: number; date: string }[];
-};
-type Store = State & {
-  update: (fn: (state: State) => State) => void;
-  saveDocument: (doc: Document) => void;
-};
-const Context = createContext<Store | null>(null);
+import { FocusContext, type FocusState as State } from "./context";
 const initial: State = { documents: [], user: null, dark: false, tracking: true, sessions: [] };
 export function FocusProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(initial);
@@ -43,13 +31,13 @@ export function FocusProvider({ children }: { children: ReactNode }) {
     }));
   }
   return (
-    <Context.Provider value={{ ...state, update: setState, saveDocument }}>
+    <FocusContext.Provider value={{ ...state, update: setState, saveDocument }}>
       {children}
-    </Context.Provider>
+    </FocusContext.Provider>
   );
 }
 export function useFocus() {
-  const s = useContext(Context);
+  const s = useContext(FocusContext);
   if (!s) throw new Error("FocusProvider required");
   return s;
 }
