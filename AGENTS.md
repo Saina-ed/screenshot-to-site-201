@@ -32,5 +32,6 @@ use the editor.
 ## App structure
 - Keep Focus Frame feature modules in `src/features/focus` and page entry points in TanStack file routes so shared study behavior stays consistent.
 - Use the shared FocusProvider for explicitly demo-only, device-local documents and account state; never represent this storage as production authentication.
+- Define shared React context in a separate non-component module so provider and consumer identity stays consistent during live updates.
 - Parse lesson uploads in the browser with dynamically imported document readers so lesson material stays on the device.
 - Keep deterministic note generation and quiz evaluation in the pure model module so learning rules can be tested independently.
