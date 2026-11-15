@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## App structure
+- Keep Focus Frame feature modules in `src/features/focus` and page entry points in TanStack file routes so shared study behavior stays consistent.
+- Use the shared FocusProvider for explicitly demo-only, device-local documents and account state; never represent this storage as production authentication.
+- Parse lesson uploads in the browser with dynamically imported document readers so lesson material stays on the device.
+- Keep deterministic note generation and quiz evaluation in the pure model module so learning rules can be tested independently.
