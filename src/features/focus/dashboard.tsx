@@ -13,7 +13,7 @@ import {
   Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import sprig from "@/assets/learning-sprig.jpg";
+import learningImage from "@/assets/chrome-learning.jpg";
 import { useFocus } from "./store";
 import { Shell, PageHeader, SubjectIcon } from "./shell";
 import type { Document } from "./model";
@@ -63,7 +63,7 @@ export function Dashboard() {
   return (
     <Shell>
       <PageHeader title="Home" eyebrow="Home" />
-      <main className="page-content">
+      <main className="page-content dashboard-content">
         <div className="page-intro">
           <div>
             <h1>
@@ -80,12 +80,12 @@ export function Dashboard() {
           </Button>
         </div>
         <section className="welcome-banner">
-          <img src={sprig} width={1152} height={576} alt="A fresh green sprig" />
+          <img src={learningImage} width={1536} height={768} alt="Sculptural silver book with cobalt blue page edges" />
           <div className="welcome-copy">
             <span className="eyebrow">
-              <Sparkles size={12} /> A LITTLE FOCUS GOES A LONG WAY
+              <Sparkles size={12} /> YOUR PERSONAL LEARNING SPACE
             </span>
-            <h2>Your pace. Your space. Your potential.</h2>
+            <h2>FOCUS FRAME<span>LEARN YOUR WAY.</span></h2>
             <p>Turn big ideas into small steps, and make learning feel lighter.</p>
             <Link to="/canvas" search={{ doc: "sample-0" }}>
               Let’s get into your flow <ArrowRight size={14} />
